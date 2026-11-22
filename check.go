@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
-	"testing/fstest"
 	"time"
 
 	"github.com/kjkrol/ceremony/comp"
@@ -35,12 +33,12 @@ type fieldRow struct {
 
 // check lays the map on a board as a game would and runs it a step: what a board refuses fails
 // here.
-func (w *chart) check(data []byte) error {
-	return w.checkIn(fstest.MapFS{"map.yaml": {Data: data}}, "map.yaml")
-}
-
-// checkIn is check of the level name in fsys, the files it names beside it
-func (w *chart) checkIn(fsys fs.FS, name string) (err error) {
+func (w *chart) check() (err error) {
+	const name = "map"
+	fsys, err := w.mapped(name, "", "")
+	if err != nil {
+		return err
+	}
 	units := w.r.Area.Units
 	wp := world.NewPlugin(world.Config{
 		Space: world.SpaceCfg{Width: uint32(w.cols) * units, Height: uint32(w.rows) * units},
@@ -104,7 +102,7 @@ func (w *chart) checkIn(fsys fs.FS, name string) (err error) {
 				wp.Roster().Spec(world.EntityTemplate, comp.Const(world.Position{})))
 		}
 	}
-	level, err := b.Lay(fsys, name)
+	level, err := b.Lay(fsys, name+".yaml")
 	if err != nil {
 		return err
 	}

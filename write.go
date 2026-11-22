@@ -16,7 +16,7 @@ import (
 	"github.com/kjkrol/gram/plugins/board/water"
 )
 
-const attribution = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen's Tilezen
+const attribution = `# Made by gramap. Heights: Terrain Tiles on AWS (Mapzen's Tilezen
 # terrarium) — SRTM, EU-DEM, GMTED2010, ETOPO1 and others; see
 # https://github.com/tilezen/joerd/blob/master/docs/attribution.md
 `
@@ -46,98 +46,6 @@ func (w *chart) credits(b *bytes.Buffer, recipePath string) {
 		strconv.FormatFloat(math.Round(w.perUnit*1000)/1000, 'f', -1, 64))
 	if w.origin != [2]int{} {
 		fmt.Fprintf(b, "%s[%d, %d].\n", originLine, w.origin[0], w.origin[1])
-	}
-}
-
-func (w *chart) text(recipePath, units string) []byte {
-	var b bytes.Buffer
-	w.credits(&b, recipePath)
-	w.writeBoard(&b)
-	if !w.flat {
-		w.writeRelief(&b)
-	}
-	w.writeWays(&b)
-	b.WriteString(units)
-	return b.Bytes()
-}
-
-var legend = []struct {
-	key  string
-	kind func(k kinds) string
-}{
-	{"~", func(k kinds) string { return k.Sea }},
-	{".", func(k kinds) string { return k.Earth }},
-	{":", func(k kinds) string { return k.Sand }},
-	{"^", func(k kinds) string { return k.Rock }},
-	{"*", func(k kinds) string { return k.Forest }},
-	{"@", func(k kinds) string { return k.Built }},
-}
-
-func (w *chart) writeBoard(b *bytes.Buffer) {
-	k := w.r.Kinds
-	fmt.Fprintf(b, "board:\n  default: %s\n  legend:\n", k.Sea)
-	keys := map[string]string{}
-	for _, l := range legend {
-		if kind := l.kind(k); kind != "" && (kind == k.Sea || slices.Contains(w.soils, kind)) {
-			fmt.Fprintf(b, "    %q: %s\n", l.key, kind)
-			keys[kind] = l.key
-		}
-	}
-	// the land cover's kinds by a letter of their names, the first no kind before took
-	for _, kind := range w.r.Cover.kinds() {
-		if !slices.Contains(w.soils, kind) {
-			continue
-		}
-		for _, key := range kind + "abcdefghijklmnopqrstuvwxyz" {
-			taken := false
-			for _, k := range keys {
-				taken = taken || k == string(key)
-			}
-			if !taken {
-				fmt.Fprintf(b, "    %q: %s\n", string(key), kind)
-				keys[kind] = string(key)
-				break
-			}
-		}
-	}
-	b.WriteString("  cells: |\n")
-	for y := range w.rows {
-		b.WriteString("    ")
-		for x := range w.cols {
-			b.WriteString(keys[w.kindAt(x, y)])
-		}
-		b.WriteString("\n")
-	}
-	stands, fields := w.standing(), w.fields()
-	if len(stands)+len(fields)+len(w.roads.tunnels) == 0 {
-		return
-	}
-	b.WriteString("  entities:\n")
-	for _, t := range w.roads.tunnels {
-		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s", k.Tunnel, w.point(t.from),
-			w.point(t.to))
-		if len(t.via) > 0 {
-			via := make([]string, len(t.via))
-			for i, c := range t.via {
-				via[i] = w.point(c)
-			}
-			fmt.Fprintf(b, ", via: [%s]", strings.Join(via, ", "))
-		}
-		b.WriteString("}\n")
-	}
-	for _, s := range stands {
-		x, y := w.xy(s.at)
-		if s.bridge {
-			tx, ty := w.xy(s.to)
-			fmt.Fprintf(b, "    - {kind: %s, from: [%d, %d], to: [%d, %d]}\n", s.kind, x, y, tx, ty)
-			continue
-		}
-		dx, dy := w.grid.Offset(s.way)
-		fmt.Fprintf(b, "    - {kind: %s, at: [%d, %d], way: [%d, %d]}\n", s.kind, x, y, dx, dy)
-	}
-	for _, f := range fields {
-		fmt.Fprintf(b, "    - {kind: %s, from: %s, to: %s, cells: %d}\n", f.kind, w.point(f.from),
-			w.point(f.to), f.cells)
 	}
 }
 
@@ -180,109 +88,6 @@ func (w *chart) deck() float64 {
 		return d
 	}
 	return w.size
-}
-
-func (w *chart) writeRelief(b *bytes.Buffer) {
-	b.WriteString("relief: # metres\n  corners: |\n")
-	for y := range w.rows + 1 {
-		b.WriteString("    ")
-		for x := range w.cols + 1 {
-			if x > 0 {
-				b.WriteByte(' ')
-			}
-			b.WriteString(number(w.corners[y*(w.cols+1)+x]))
-		}
-		b.WriteString("\n")
-	}
-}
-
-func (w *chart) writeWays(b *bytes.Buffer) {
-	b.WriteString("ways:\n")
-	if len(w.roads.laid) > 0 {
-		fmt.Fprintf(b, "  roads:\n    %s:\n      width: %s\n      paths:\n", w.r.Kinds.Road,
-			number(w.roads.cfg.Width))
-		for _, rd := range w.roads.laid {
-			for _, seg := range segments(rd) {
-				var items []string
-				for i, at := range w.turns(seg.cells) {
-					xy := w.point(seg.cells[at])
-					if i == 0 && seg.first || at == len(seg.cells)-1 && seg.last {
-						xy = "{onto: " + xy + "}"
-					}
-					items = append(items, xy)
-				}
-				writeList(b, "        - ", items)
-			}
-		}
-		// a road runs on into each tunnel from its head
-		for _, t := range w.roads.tunnels {
-			under := t.plan.Cells
-			for _, e := range [2][2]cell.ID{{t.from, under[0]}, {t.to, under[len(under)-1]}} {
-				fmt.Fprintf(b, "        - [%s, {onto: %s}]\n", w.point(e[0]), w.point(e[1]))
-			}
-		}
-	}
-	rivers := w.riverPaths()
-	if len(rivers) == 0 {
-		return
-	}
-	b.WriteString("  rivers:\n")
-	k := w.r.Kinds
-	kinds := map[water.Course]string{
-		water.Brook: k.Brook, water.Stream: k.Stream, water.River: k.River, water.Ford: k.River,
-	}
-	for _, path := range rivers {
-		var items []string
-		kind := ""
-		turns := w.turns(path)
-		for _, at := range turns {
-			c := path[at]
-			if at == len(path)-1 {
-				items = append(items, w.point(c))
-				break
-			}
-			item := "{at: " + w.point(c)
-			if kk := kinds[w.rivers.Courses[c]]; kk != kind {
-				kind = kk
-				item += ", kind: " + kind
-			}
-			item += ", width: " + number(float64(w.rivers.Width(c, float32(w.size)))) + "}"
-			items = append(items, item)
-		}
-		writeList(b, "    - ", items)
-	}
-}
-
-type segment struct {
-	cells       []cell.ID
-	first, last bool
-}
-
-func segments(rd road) []segment {
-	var out []segment
-	start := 0
-	for i := 1; i < len(rd.cells); i++ {
-		if rd.over[i] && !rd.over[i-1] {
-			out = append(out, segment{cells: rd.cells[start : i+1], first: start > 0, last: true})
-		}
-		if !rd.over[i] && rd.over[i-1] {
-			start = i - 1
-		}
-	}
-	return append(out, segment{cells: rd.cells[start:], first: start > 0})
-}
-
-// the points a level file routes along to come back to every cell
-func (w *chart) turns(cells []cell.ID) []int {
-	out := []int{0}
-	way := func(i int) cell.Links { l, _ := grid.Link(w.grid, cells[i], cells[i+1]); return l }
-	for i := 1; i < len(cells)-1; i++ {
-		kind := w.rivers.Courses[cells[i]] != w.rivers.Courses[cells[i-1]] && w.wet(cells[i])
-		if way(i) != way(i-1) || kind {
-			out = append(out, i)
-		}
-	}
-	return append(out, len(cells)-1)
 }
 
 func (w *chart) point(c cell.ID) string {
@@ -330,25 +135,6 @@ func (w *chart) riverPaths() [][]cell.ID {
 		out = append(out, path)
 	}
 	return out
-}
-
-func writeList(b *bytes.Buffer, lead string, items []string) {
-	indent := strings.Repeat(" ", len(lead)+1)
-	line := lead + "["
-	for i, it := range items {
-		tail := ", "
-		if i == len(items)-1 {
-			tail = "]"
-		}
-		if len(line)+len(it)+len(strings.TrimSpace(tail)) > 100 && len(line) > len(indent) {
-			b.WriteString(strings.TrimRight(line, " "))
-			b.WriteString("\n")
-			line = indent
-		}
-		line += it + tail
-	}
-	b.WriteString(line)
-	b.WriteString("\n")
 }
 
 // to the centimetre

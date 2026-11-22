@@ -13,11 +13,11 @@ import (
 
 func geography(t *testing.T, w *chart) *mapfile.File {
 	t.Helper()
-	dir := t.TempDir()
-	if err := w.writeGeography(dir, "isle.yaml"); err != nil {
+	files, err := w.mapped("map", "isle.yaml", "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	f, err := mapfile.Load(os.DirFS(dir), manifestFile)
+	f, err := mapfile.Load(files, "map/"+manifestFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,22 +208,8 @@ func TestGeography_AFlatMapHasNoHeights(t *testing.T) {
 
 // laid writes the map in metres with the level over it, a game's units in it, and lays a
 // board by them
-func laid(t *testing.T, w *chart) {
-	t.Helper()
-	dir := t.TempDir()
-	const units = "units:\n  - {kind: a kind of the game's, start: [1, 1]}\n"
-	if err := w.writeLevels(dir+"/geography", "isle.yaml", units); err != nil {
-		t.Fatal(err)
-	}
-	level, err := os.ReadFile(dir + "/geography.yaml")
-	if err != nil || !strings.HasSuffix(string(level), units) {
-		t.Fatalf("the level over the map ends without the game's units (%v)", err)
-	}
-}
-
-func TestGeography_ABoardLaysTheLevelOverIt(t *testing.T) {
+func TestWrite_TheLevelKeepsTheGamesUnitsAndABoardLaysTheMap(t *testing.T) {
 	r, height := isle(t)
-	r.stepped = true
 	w, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
@@ -231,5 +217,16 @@ func TestGeography_ABoardLaysTheLevelOverIt(t *testing.T) {
 	if w.step == 0 {
 		t.Fatal("a map written in metres is planned in no steps")
 	}
-	laid(t, w)
+	dir := t.TempDir()
+	const units = "units:\n  - {kind: a kind of the game's, start: [1, 1]}\n"
+	if err := w.write(dir+"/geography", "isle.yaml", units); err != nil {
+		t.Fatal(err)
+	}
+	level, err := os.ReadFile(dir + "/geography.yaml")
+	if err != nil || !strings.HasSuffix(string(level), units) {
+		t.Fatalf("the level over the map ends without the game's units (%v)", err)
+	}
+	if _, err := mapfile.Load(os.DirFS(dir), "geography/"+manifestFile); err != nil {
+		t.Fatal(err)
+	}
 }

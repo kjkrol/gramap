@@ -74,7 +74,7 @@ func build(r recipe, height, deep elevation, osm source, land landcover, flat bo
 			w.corners[y*(cols+1)+x] = max(h, 0)
 		}
 	}
-	if r.stepped && !flat {
+	if !flat {
 		w.step = w.stepFor()
 		// a ramp's ends a step further apart is no steeper than the roads may climb
 		rise := math.Tan(w.r.Roads.Slope*math.Pi/180) - w.step/r.Area.Cell

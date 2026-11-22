@@ -115,8 +115,9 @@ func TestBuild_DrawsTheLandAsItsCoverSays(t *testing.T) {
 			t.Errorf("%s is %s, want %s", name, got, tc.want)
 		}
 	}
-	text := string(c.text("covered.yaml", ""))
-	for _, want := range []string{`"l": laurisilva`, `"w": woodland`, `"h": heath`,
+	text := string(c.levelOver("map", "covered.yaml", ""))
+	for _, want := range []string{"landcover=laurisilva: laurisilva",
+		"landcover=woodland: woodland", "landcover=heath: heath",
 		"kind: woods", "CORINE Land Cover 2018"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the map lacks %q", want)
@@ -133,7 +134,8 @@ func TestBuild_AFlatMapLaysItsForestByNoise(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if text := string(c.text("covered.yaml", "")); !strings.Contains(text, "forest") ||
+	text := string(c.levelOver("map", "covered.yaml", ""))
+	if !strings.Contains(text, "forest") ||
 		strings.Contains(text, "laurisilva") {
 		t.Error("a flat map takes the land cover, want its forest by noise as before")
 	}

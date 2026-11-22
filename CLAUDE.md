@@ -6,8 +6,9 @@ repository.
 ## What this is
 
 **gramap** (module `github.com/kjkrol/gramap`) is a command that makes a map of any stretch of
-the Earth for a game on [gram](https://github.com/kjkrol/gram): a level file a gram board lays,
-from a recipe. It is one package, `main`, at the module's root.
+the Earth for a game on [gram](https://github.com/kjkrol/gram): a map in files, in metres
+(gram's `board/mapfile`), and the level a gram board lays by it, from a recipe. It is one
+package, `main`, at the module's root.
 
 It builds on gram's own rules, never its own copies of them: the roads' planner and levelling
 (`plugins/roads/site`), the bridges' (`plugins/bridges/site`), the tunnels'

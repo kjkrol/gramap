@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"image"
+	"image/png"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -218,16 +223,19 @@ func TestBuild_FollowsOpenStreetMapsRoadThroughItsTunnel(t *testing.T) {
 				c.point(under))
 		}
 	}
-	data := c.text("ridged.yaml", "")
-	if !strings.Contains(string(data), "["+c.point(tn.from)+", {onto: "+
-		c.point(tn.plan.Cells[0])+"}]") {
-		t.Error("no road runs on from the head into the tunnel")
+	files, err := c.mapped("map", "ridged.yaml", "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(string(data), "kind: tunnel, from: "+c.point(tn.from)) ||
-		!strings.Contains(string(data), "OpenStreetMap contributors") {
-		t.Error("the map names no tunnel or not whose its roads are")
+	if !bytes.Contains(files["map/"+featuresFile].Data, []byte(`"tunnel":"yes"`)) {
+		t.Error("no line of the map is the tunnel's")
 	}
-	if err := c.check(data); err != nil {
+	level := string(files["map.yaml"].Data)
+	if !strings.Contains(level, "tunnels: {road: tunnel}") ||
+		!strings.Contains(level, "OpenStreetMap contributors") {
+		t.Error("the level names no tunnel or not whose its roads are")
+	}
+	if err := c.check(); err != nil {
 		t.Errorf("a board refuses the map: %v", err)
 	}
 }
@@ -247,10 +255,11 @@ func TestSettle_BuildsWhereOpenStreetMapHasTheBuildings(t *testing.T) {
 	}
 }
 
-// the maps of Madeira as the recipe makes them, by the SHA-256 of their text
+// the maps of Madeira as the recipe makes them, by the SHA-256 of their files, the heights as
+// the image's values
 var madeira = map[bool]string{
-	false: "db6f0b73312bcee4969fdfa5ec7cdee1284906533547c95c83062eb66dcaeba2",
-	true:  "123d909c3286f484a3c7a68e10bd458cb815644f2f04273889f24f32950255ff",
+	false: "ee1bf5baa132727e48f74f943985fefc1a9d74a96c2b1669218ec87c938cc5cd",
+	true:  "08497bcf1fab15df46ad68eae2e50bc11052eed4d0309b344ebdc1f45fd32f2e",
 }
 
 // With GRAMAP_MADEIRA set and the tiles and OpenStreetMap's answers in the user's cache, the
@@ -293,19 +302,28 @@ func TestMadeira_IsTheMapItWas(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// the recipe's name as the maps held to were made, written into them
-		sum := sha256.Sum256(c.text("cmd/gramap/madeira.yaml", ""))
-		if got := hex.EncodeToString(sum[:]); got != want {
+		files, err := c.mapped("map", "madeira.yaml", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.New()
+		for _, name := range slices.Sorted(maps.Keys(files)) {
+			data := files[name].Data
+			if strings.HasSuffix(name, heightsFile) {
+				img, err := png.Decode(bytes.NewReader(data))
+				if err != nil {
+					t.Fatal(err)
+				}
+				data = img.(*image.Gray16).Pix
+			}
+			sum.Write([]byte(name))
+			sum.Write(data)
+		}
+		if got := hex.EncodeToString(sum.Sum(nil)); got != want {
 			t.Errorf("flat %v: the map is %s, was %s", flat, got, want)
 		}
-		geography(t, c)
-		if !flat {
-			// in metres the map is planned a step clear of its limits: made anew, and laid
-			rc.stepped = true
-			if c, err = build(rc, tiles.at, deep.at, osm, land, flat); err != nil {
-				t.Fatal(err)
-			}
-			laid(t, c)
+		if err := c.check(); err != nil {
+			t.Errorf("flat %v: %v", flat, err)
 		}
 	}
 }

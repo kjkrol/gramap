@@ -67,18 +67,21 @@ file, `roads/site`, `bridges/site`, `underground/site`, `board/water`) are read 
   time, holes by the even-odd rule; `soil()` takes the cover's kind before the slope's rock
   (the laurisilva grows on slopes: with the rock first it lost 40 % of its cells) and after the
   altitude's. CORINE knows no species: the game's stands pick them by height.
-- `-geography` (`geography.go`, 2026-11-22) writes the map beside the level file as gram's
-  `board/mapfile`, the format the level file is to give way to (the user's word: beside it for
-  now, grown till the old one can go), and `<folder>.yaml`, the level over it, which `checkIn`
-  lays on a board. The heights are 16 bits, 5 cm a step over Madeira, and the user's word
-  (2026-11-22) is that the precision stays and the map maker copes: `recipe.stepped` picks the
-  step before anything is planned (`stepFor`, the bed and the roads' fill counted in) and the
-  plan keeps a step clear, the roads' slope a step less a cell (a ramp at the 10° limit was
-  2 cm over it once rounded), the decks' `margin()` a step and a half. A run without the flag
-  plans as ever, so the sums in `osm_test.go` hold; with it the level file is of the stepped
-  plan too. A bridge is written once, from its span's heads (two roads over one span wrote it
-  twice: "a head stands on another bridge"); a ford a road's run, gram keeping one a cell. An
-  area is a stretch of cells joined by their sides, its rings found along the cells' edges
-  with the region on the right; a region touching itself by a corner may give one ring passing
-  a point twice, which the even-odd rule reads right. What it lacks to take over: a river's
-  width cell by cell.
+- The map is gram's `board/mapfile` alone (`geography.go`, 2026-11-22; the level file with its
+  relief in numbers went with v0.3.0, the user's word): `mapped` makes its files, the folder
+  and `<folder>.yaml`, the level over it, `check` lays them on a board, `write` puts them on
+  disk. Where this skill speaks of the legend's `@`, of `entities:` rows or of the old file's
+  `units:`, read the level over the folder. A flat map is the same without heights; a game's
+  world must say its scale, the map being in metres. The heights are 16 bits, 5 cm a step
+  over Madeira, and the user's word (2026-11-22) is that the precision stays and the map
+  maker copes: `stepFor` picks the step before anything is planned (the bed and the roads'
+  fill counted in) and the plan keeps a step clear, the roads' slope a step less a cell (a
+  ramp at the 10° limit was 2 cm over it once rounded), the decks' `margin()` a step and a
+  half. A bridge is written once, from its span's heads (two roads over one span wrote it
+  twice: "a head stands on another bridge"); a ford a road's run, gram keeping one a cell. A
+  river's `width` is one a point, its cell's, the sea's cell at a mouth as the last before it
+  (a width of zero is refused). An area is a stretch of cells joined by their sides, its
+  rings found along the cells' edges with the region on the right; a region touching itself
+  by a corner may give one ring passing a point twice, which the even-odd rule reads right.
+  The sums in `osm_test.go` are of the files, the heights as the image's values, not the
+  PNG's bytes.

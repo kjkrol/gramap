@@ -130,7 +130,7 @@ func TestBuild_RoadsLieAsTransportTycoonLaysThem(t *testing.T) {
 	if overWater == 0 {
 		t.Error("no bridge carries the road over the valley's water")
 	}
-	if err := c.check(c.text("isle.yaml", "")); err != nil {
+	if err := c.check(); err != nil {
 		t.Error(err)
 	}
 }
@@ -186,14 +186,18 @@ func TestBuild_AFlatBridgeIsACellLong(t *testing.T) {
 				c.wet(s.cells[0]))
 		}
 	}
-	data := c.text("isle.yaml", "")
-	if bytes.Contains(data, []byte("relief:")) {
-		t.Error("a flat map has a relief")
+	files, err := c.mapped("map", "isle.yaml", "")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if bridges := bytes.Count(data, []byte("from: [")); bridges == 0 {
-		t.Error("a flat map's bridges are not written from head to head")
+	if files["map/"+heightsFile] != nil ||
+		bytes.Contains(files["map/"+manifestFile].Data, []byte("heights:")) {
+		t.Error("a flat map has heights")
 	}
-	if err := c.check(data); err != nil {
+	if !bytes.Contains(files["map/"+featuresFile].Data, []byte(`"bridge":"yes"`)) {
+		t.Error("a flat map's bridges are not written")
+	}
+	if err := c.check(); err != nil {
 		t.Error(err)
 	}
 }
@@ -285,7 +289,7 @@ func TestBuild_TheAreaGrowsForSeaRoundTheLand(t *testing.T) {
 			}
 		}
 	}
-	if x, y := originOf(c.text("isle.yaml", "")); x != c.origin[0] || y != c.origin[1] {
+	if x, y := originOf(c.levelOver("map", "isle.yaml", "")); x != c.origin[0] || y != c.origin[1] {
 		t.Errorf("the map says its area begins at [%d, %d], want %v", x, y, c.origin)
 	}
 }
@@ -659,59 +663,18 @@ rivers: {brook: 1000, stream: 2000, river: 3000}
 	return r, height
 }
 
-// knollMap is the knoll's map as gramap wrote it before fields and settlements.
-const knollMap = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen's Tilezen
-# terrarium) — SRTM, EU-DEM, GMTED2010, ETOPO1 and others; see
-# https://github.com/tilezen/joerd/blob/master/docs/attribution.md
-# From knoll.yaml.
-# 20 x 12 cells of 500 m; a world unit 15.625 m.
-board:
-  default: water
-  legend:
-    "~": water
-    ".": earth
-    ":": sand
-    "^": rock
-    "*": forest
-  cells: |
-    ~~~~~~~~~~~~~~~~~~~~
-    ~~~~~~~~~~~~~~~~~~~~
-    ~~::::::::::::::::~~
-    ~~:..............:~~
-    ~~:.....****.....:~~
-    ~~:....**^^**....:~~
-    ~~:....**^^**....:~~
-    ~~:.....****.....:~~
-    ~~:..............:~~
-    ~~::::::::::::::::~~
-    ~~~~~~~~~~~~~~~~~~~~
-    ~~~~~~~~~~~~~~~~~~~~
-relief: # metres
-  corners: |
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    0 0 0 40 80 80 80 80 80 80 80 80 80 80 80 80 80 40 0 0 0
-    0 0 0 40 80 120 160 160 160 160 160 160 160 160 160 120 80 40 0 0 0
-    0 0 0 40 80 120 160 200 240 240 240 240 240 200 160 120 80 40 0 0 0
-    0 0 0 40 80 120 160 200 240 280 320 280 240 200 160 120 80 40 0 0 0
-    0 0 0 40 80 120 160 200 240 240 240 240 240 200 160 120 80 40 0 0 0
-    0 0 0 40 80 120 160 160 160 160 160 160 160 160 160 120 80 40 0 0 0
-    0 0 0 40 80 80 80 80 80 80 80 80 80 80 80 80 80 40 0 0 0
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-ways:
-`
-
-func TestText_WithoutFieldsOrSettlementsTheMapIsAsBefore(t *testing.T) {
+func TestLevel_WithoutFieldsOrSettlementsTheMapHasNone(t *testing.T) {
 	r, height := knoll(t)
 	c, err := build(r, height, nil, nil, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(c.text("knoll.yaml", "")); got != knollMap {
-		t.Errorf("the map\n%s\nwant\n%s", got, knollMap)
+	level := string(c.levelOver("map", "knoll.yaml", ""))
+	if strings.Contains(level, "entities:") || strings.Contains(level, "built") {
+		t.Errorf("the level\n%s\nwant no field and nothing built", level)
+	}
+	if err := c.check(); err != nil {
+		t.Error(err)
 	}
 }
 
@@ -801,15 +764,14 @@ func TestFields_ABlockOfLeastCellsIsAFieldOverThem(t *testing.T) {
 	if got := w.fields(); !slices.Equal(got, want) {
 		t.Errorf("fields %v, want %v", got, want)
 	}
-	var b bytes.Buffer
-	w.writeBoard(&b)
+	level := string(w.levelOver("map", "knoll.yaml", ""))
 	rows := "  entities:\n" +
 		"    - {kind: forest, from: [9, 1], to: [12, 5], cells: 3}\n" +
 		"    - {kind: forest, from: [16, 2], to: [19, 7], cells: 4}\n" +
 		"    - {kind: dunes, from: [2, 5], to: [2, 5], cells: 1}\n" +
 		"    - {kind: forest, from: [0, 8], to: [7, 8], cells: 3}\n"
-	if !strings.HasSuffix(b.String(), rows) {
-		t.Errorf("the board\n%s\nwant its entities\n%s", b.String(), rows)
+	if !strings.Contains(level, rows+"geography:") {
+		t.Errorf("the level\n%s\nwant its entities\n%s", level, rows)
 	}
 }
 
@@ -902,9 +864,9 @@ func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
 	if got := len(c.settled["town"]); got != 6 {
 		t.Errorf("the town settled on %d cells, want 6", got)
 	}
-	data := c.text("knoll.yaml", "")
+	data := c.levelOver("map", "knoll.yaml", "")
 	for _, want := range []string{
-		`"@": built`,
+		"landcover=built: built",
 		"{kind: forest, from: ",
 		"{kind: settlement, from: ",
 	} {
@@ -912,7 +874,7 @@ func TestCheck_TakesAMapWithFieldsAndSettlements(t *testing.T) {
 			t.Errorf("the map has no %s", want)
 		}
 	}
-	if err := c.check(data); err != nil {
+	if err := c.check(); err != nil {
 		t.Error(err)
 	}
 }

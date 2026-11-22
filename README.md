@@ -16,39 +16,38 @@
 </p>
 
 **gramap** makes a map of any stretch of the Earth, at any scale, for a game on
-[gram](https://github.com/kjkrol/gram): a level file a gram board lays, with its relief, its
-kinds of ground, its rivers, its roads, bridges, fords and tunnels, written from a recipe that
-says where and how. The map is laid on a real board before it is written, so what a board
-refuses, gramap refuses.
+[gram](https://github.com/kjkrol/gram): a map in files, in metres, with its relief, its kinds
+of ground, its rivers, its roads, bridges, fords and tunnels, and the level a gram board lays
+by it, written from a recipe that says where and how. The map is laid on a real board before
+it is written, so what a board refuses, gramap refuses.
 
 ## Use
 
 gramap requires **Go 1.27** or newer.
 
 ```bash
-go run github.com/kjkrol/gramap@latest -recipe madeira.yaml -out relief/map.yaml
-go run github.com/kjkrol/gramap@latest -recipe madeira.yaml -out flat/map.yaml -flat
+go run github.com/kjkrol/gramap@latest -recipe madeira.yaml -geography relief/geography
+go run github.com/kjkrol/gramap@latest -recipe madeira.yaml -geography flat/geography -flat
 ```
 
 | Flag | What it is |
 |---|---|
 | `-recipe` | the recipe, YAML |
-| `-out` | the map to write; a `units:` section in the file made before stays as it was |
+| `-geography` | the folder to write the map into; `<folder>.yaml`, the level over it, is written beside it, a `units:` section in the one made before staying as it was |
 | `-flat` | a map without heights, its bridges a cell long |
-| `-geography` | a folder to write the map into as files in metres too |
 | `-cache` | where what is fetched is kept; unset, `gramap` in the user's cache |
 
-## The map in metres
+## The map
 
-With `-geography <folder>` the map is written a second time, as gram's
-[`board/mapfile`](https://github.com/kjkrol/gram/tree/main/plugins/board/mapfile) has a map:
-`level.yaml`, the ground's heights as `heights.png`, a pixel a corner of a cell, and
-`features.geojson`, in metres, named as OpenStreetMap's tags are:
+The map is written as gram's
+[`board/mapfile`](https://github.com/kjkrol/gram/tree/main/plugins/board/mapfile) has one, a
+folder: `level.yaml`, the ground's heights as `heights.png`, a pixel a corner of a cell (none
+with `-flat`), and `features.geojson`, in metres, named as OpenStreetMap's tags are:
 
 | What | Written as |
 |---|---|
 | the land's kinds | areas, `landcover=<kind>`, along the cells' edges |
-| the rivers | lines, `waterway=brook`, `stream` or `river` with its `width` |
+| the rivers | lines, `waterway=brook`, `stream` or `river`, its `width` a point |
 | the roads | lines, `highway=road` |
 | the bridges | lines from head to head, `highway=road` and `bridge=yes` |
 | the roads' fords and the tunnels | lines from the cell before to the cell after, `ford=yes`, `tunnel=yes` |
@@ -56,17 +55,13 @@ With `-geography <folder>` the map is written a second time, as gram's
 | the roads' places | points, `name` and `place` (its size) |
 
 Beside the folder lies `<folder>.yaml`, the level a gram board lays by it: the kinds the
-map's features are laid as, the fields and the units. It is laid on a board before the run
-ends, as the level file is.
+map's features are laid as, the fields and the game's units. A game's world says how many
+metres its unit is (`world.Config.Scale`), as the map's first lines do.
 
 The heights are 16 bits a pixel, so over a ground reaching far up they are told in steps of
-centimetres (5 cm over Madeira). A map written so is planned a step clear of every limit, its
+centimetres (5 cm over Madeira). A map with relief is planned a step clear of every limit, its
 roads climbing a step less a cell and its decks standing a step and a half further off the
-ground, so no rounding lays a road or a bridge the board refuses; the level file of the same
-run is of that plan too.
-
-Not there yet: a river is as wide as its course's mean, not cell by cell. The level file stays
-the map a game lays until it is.
+ground, so no rounding lays a road or a bridge the board refuses.
 
 ## The recipe
 
@@ -102,7 +97,7 @@ make madeira        # Madeira made whole and held to its sums
 ```
 
 `make madeira` makes both of Madeira's maps from what the cache holds (two minutes; the first
-run fetches) and compares each with its SHA-256: a change that should move no cell moves none.
+run fetches), lays each on a board and compares its files with their SHA-256: a change that should move no cell moves none.
 
 ## Credits
 

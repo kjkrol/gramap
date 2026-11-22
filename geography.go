@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"testing/fstest"
 
 	"github.com/kjkrol/gram/plugins/board/cell"
 	"github.com/kjkrol/gram/plugins/board/water"
@@ -41,28 +42,25 @@ type drawn struct {
 	lines [][][2]float64
 }
 
-// writeGeography writes the map into dir as files in metres: the manifest, the heights and
-// what lies on the ground
-func (w *chart) writeGeography(dir, recipePath string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
+// mapped is the map as its files: the folder of a map in metres (the manifest, the heights
+// and what lies on the ground) and, beside it and named as it, the level a board lays by it
+// with the game's units
+func (w *chart) mapped(folder, recipePath, units string) (fstest.MapFS, error) {
 	var b bytes.Buffer
 	w.credits(&b, recipePath)
 	m := w.r.Area.Cell
 	fmt.Fprintf(&b, "size: [%s, %s]\n", metres(float64(w.cols)*m), metres(float64(w.rows)*m))
+	files := fstest.MapFS{}
 	if !w.flat {
 		img, lowest, step, err := w.heightsImage()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		var data bytes.Buffer
 		if err := png.Encode(&data, img); err != nil {
-			return err
+			return nil, err
 		}
-		if err := os.WriteFile(filepath.Join(dir, heightsFile), data.Bytes(), 0o644); err != nil {
-			return err
-		}
+		files[folder+"/"+heightsFile] = &fstest.MapFile{Data: data.Bytes()}
 		fmt.Fprintf(&b, "heights:\n  file: %s\n  pixel: %s\n  lowest: %s\n  step: %s\n",
 			heightsFile, metres(m), metres(lowest), metres(step))
 	}
@@ -71,29 +69,29 @@ func (w *chart) writeGeography(dir, recipePath string) error {
 		fmt.Fprintf(&b, "roads:\n  %s:\n    lanes: 2\n    lane: %s\n", highway,
 			metres(w.roads.cfg.Width*w.perUnit/2))
 	}
-	if err := os.WriteFile(filepath.Join(dir, manifestFile), b.Bytes(), 0o644); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, featuresFile), w.geoJSON(w.features()), 0o644)
+	files[folder+"/"+manifestFile] = &fstest.MapFile{Data: b.Bytes()}
+	files[folder+"/"+featuresFile] = &fstest.MapFile{Data: w.geoJSON(w.features())}
+	files[folder+".yaml"] = &fstest.MapFile{Data: w.levelOver(folder, recipePath, units)}
+	return files, nil
 }
 
-// writeLevels writes the map into the folder dir as files in metres and, beside it and named
-// as it, the level a board lays by it with the game's units, laid on a board first without
-// them: their kinds are the game's
-func (w *chart) writeLevels(dir, recipePath, units string) error {
-	if err := w.writeGeography(dir, recipePath); err != nil {
+// write lays the map on a board without the game's units, whose kinds are the game's, and
+// writes it into the folder dir and the level beside it, named as it, with them
+func (w *chart) write(dir, recipePath, units string) error {
+	if err := w.check(); err != nil {
 		return err
 	}
-	folder, level := filepath.Base(dir), filepath.Clean(dir)+".yaml"
-	for _, units := range []string{"", units} {
-		data := w.levelOver(folder, recipePath, units)
-		if err := os.WriteFile(level, data, 0o644); err != nil {
-			return err
-		}
-		if units != "" {
-			break
-		}
-		if err := w.checkIn(os.DirFS(filepath.Dir(level)), filepath.Base(level)); err != nil {
+	folder := filepath.Base(dir)
+	files, err := w.mapped(folder, recipePath, units)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		at := filepath.Join(filepath.Dir(dir), filepath.FromSlash(name))
+		if err := os.WriteFile(at, files[name].Data, 0o644); err != nil {
 			return err
 		}
 	}
@@ -123,16 +121,10 @@ func (w *chart) levelOver(folder, recipePath, units string) []byte {
 		}
 	}
 	fmt.Fprintf(&b, "  fords: %s\n", k.Ford)
-	// a course's width is one a kind here: the mean of its cells'
-	wide, cells := map[water.Course]float64{}, map[water.Course]float64{}
-	w.grid.EachCell(func(c cell.ID) {
-		course := w.rivers.Courses[c]
-		if course == water.Ford {
-			course = water.River
-		}
-		wide[course] += float64(w.rivers.Width(c, float32(w.size)))
-		cells[course]++
-	})
+	wet := map[water.Course]bool{}
+	for _, course := range w.rivers.Courses {
+		wet[course] = true
+	}
 	var rivers []string
 	for _, r := range []struct {
 		course water.Course
@@ -140,9 +132,8 @@ func (w *chart) levelOver(folder, recipePath, units string) []byte {
 		kind   string
 	}{{water.Brook, "brook", k.Brook}, {water.Stream, "stream", k.Stream},
 		{water.River, "river", k.River}} {
-		if r.course != water.Dry && cells[r.course] > 0 {
-			rivers = append(rivers, fmt.Sprintf("    %s: {kind: %s, width: %s}\n", r.name, r.kind,
-				number(wide[r.course]/cells[r.course])))
+		if wet[r.course] || r.course == water.River && wet[water.Ford] {
+			rivers = append(rivers, fmt.Sprintf("    %s: %s\n", r.name, r.kind))
 		}
 	}
 	if len(rivers) > 0 {
@@ -257,7 +248,7 @@ func (w *chart) middles(cells []cell.ID) [][2]float64 {
 }
 
 // waterways are the rivers, a line a stretch of one course: its last place where the water
-// goes, its width the mean of its cells'
+// goes, as wide at each point as its cell there, the sea's as the last before it
 func (w *chart) waterways() []drawn {
 	names := map[water.Course]string{
 		water.Brook: "brook", water.Stream: "stream", water.River: "river", water.Ford: "river",
@@ -265,18 +256,22 @@ func (w *chart) waterways() []drawn {
 	var out []drawn
 	for _, path := range w.riverPaths() {
 		for from := 0; from < len(path)-1; {
-			name, wide := names[w.rivers.Courses[path[from]]], 0.0
+			name := names[w.rivers.Courses[path[from]]]
 			to := from
-			for ; to < len(path)-1 && names[w.rivers.Courses[path[to]]] == name; to++ {
-				wide += float64(w.rivers.Width(path[to], float32(w.size)))
+			for to < len(path)-1 && names[w.rivers.Courses[path[to]]] == name {
+				to++
 			}
-			wide = wide / float64(to-from) * w.perUnit
+			wide := make([]string, 0, to-from+1)
+			last := 0.0
+			for _, c := range path[from : to+1] {
+				if at := float64(w.rivers.Width(c, float32(w.size))) * w.perUnit; at > 0 {
+					last = at
+				}
+				wide = append(wide, metres(math.Round(last*100)/100))
+			}
 			out = append(out, drawn{
 				shape: "LineString",
-				tags: map[string]string{
-					"waterway": name,
-					"width":    metres(math.Round(wide*100) / 100),
-				},
+				tags:  map[string]string{"waterway": name, "width": strings.Join(wide, ";")},
 				lines: [][][2]float64{w.middles(path[from : to+1])},
 			})
 			from = to

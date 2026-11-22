@@ -27,9 +27,6 @@ type recipe struct {
 	Fields      []fieldCfg     `yaml:"fields"`
 	Settlements settlementsCfg `yaml:"settlements"`
 	Flat        flatCfg        `yaml:"flat"`
-	// the map is written in metres too, its heights in steps: what is planned keeps a step
-	// clear of every limit
-	stepped bool
 }
 
 // what a map with -flat takes in place of the rest's; 0, as the rest has it

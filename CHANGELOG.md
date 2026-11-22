@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.3.0]
+
+### Changed
+
+- Breaking: a map is written in metres alone, gram's `board/mapfile`: `-geography <folder>` is
+  the map, with `<folder>.yaml`, the level a board lays by it, beside it. A flat map is
+  written so too, without heights; its game's world says how many metres its unit is.
+- A river's line has its width a point, as wide as each cell it runs over, where it had its
+  stretch's mean; the level's table of rivers names their kinds alone.
+- Every map with relief is planned a step of its heights clear of every limit.
+- The game's `units:` are kept from `<folder>.yaml` made before.
+- gram v0.27.0.
+
+### Removed
+
+- Breaking: `-out` and the level file with its relief in numbers and its ways as paths.
+
 ## [v0.2.1]
 
 ### Fixed
