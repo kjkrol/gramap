@@ -35,7 +35,38 @@ go run github.com/kjkrol/gramap@latest -recipe madeira.yaml -out flat/map.yaml -
 | `-recipe` | the recipe, YAML |
 | `-out` | the map to write; a `units:` section in the file made before stays as it was |
 | `-flat` | a map without heights, its bridges a cell long |
+| `-geography` | a folder to write the map into as files in metres too |
 | `-cache` | where what is fetched is kept; unset, `gramap` in the user's cache |
+
+## The map in metres
+
+With `-geography <folder>` the map is written a second time, as gram's
+[`board/mapfile`](https://github.com/kjkrol/gram/tree/main/plugins/board/mapfile) has a map:
+`level.yaml`, the ground's heights as `heights.png`, a pixel a corner of a cell, and
+`features.geojson`, in metres, named as OpenStreetMap's tags are:
+
+| What | Written as |
+|---|---|
+| the land's kinds | areas, `landcover=<kind>`, along the cells' edges |
+| the rivers | lines, `waterway=brook`, `stream` or `river` with its `width` |
+| the roads | lines, `highway=road` |
+| the bridges | lines from head to head, `highway=road` and `bridge=yes` |
+| the roads' fords and the tunnels | lines from the cell before to the cell after, `ford=yes`, `tunnel=yes` |
+| the rivers' fords | points, `ford=yes` |
+| the roads' places | points, `name` and `place` (its size) |
+
+Beside the folder lies `<folder>.yaml`, the level a gram board lays by it: the kinds the
+map's features are laid as, the fields and the units. It is laid on a board before the run
+ends, as the level file is.
+
+The heights are 16 bits a pixel, so over a ground reaching far up they are told in steps of
+centimetres (5 cm over Madeira). A map written so is planned a step clear of every limit, its
+roads climbing a step less a cell and its decks standing a step and a half further off the
+ground, so no rounding lays a road or a bridge the board refuses; the level file of the same
+run is of that plan too.
+
+Not there yet: a river is as wide as its course's mean, not cell by cell. The level file stays
+the map a game lays until it is.
 
 ## The recipe
 

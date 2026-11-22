@@ -49,6 +49,14 @@
 // OpenStreetMap has least buildings a cell or more; the game says what stands on them. The
 // area's figures: says how many times bigger than life the game draws its figures: a deck's
 // thickness, a man's height and a tunnel's room are given in metres of life.
+//
+// With -geography the map is written into a folder too as gram's board/mapfile has one, in
+// metres: the heights as an image, the land's kinds as areas tagged landcover, the rivers as
+// lines tagged waterway, the roads as lines tagged highway, a bridge from head to head, a ford
+// and a tunnel from the cell before to the cell after, the rivers' fords and the roads' places
+// as points; beside it, named as the folder, the level a board lays by it, laid on a board as
+// the map is. The heights are told in steps, so such a map is planned a step clear of every
+// limit.
 package main
 
 import (
@@ -67,18 +75,20 @@ func main() {
 	flat := flag.Bool("flat", false, "a map without heights, its bridges a cell long")
 	cache := flag.String("cache", "", "where the tiles are kept, OpenStreetMap's answers in osm "+
 		"beside it (default: the user's cache)")
+	geography := flag.String("geography", "", "a folder to write the map into as files in metres "+
+		"too (gram's board/mapfile)")
 	flag.Parse()
 	if *recipePath == "" || *out == "" {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if err := run(*recipePath, *out, *cache, *flat); err != nil {
+	if err := run(*recipePath, *out, *cache, *geography, *flat); err != nil {
 		fmt.Fprintln(os.Stderr, "gramap:", err)
 		os.Exit(1)
 	}
 }
 
-func run(recipePath, out, cache string, flat bool) error {
+func run(recipePath, out, cache, geography string, flat bool) error {
 	r, err := readRecipe(recipePath)
 	if err != nil {
 		return err
@@ -97,6 +107,7 @@ func run(recipePath, out, cache string, flat bool) error {
 	if flat {
 		r = r.asFlat()
 	}
+	r.stepped = geography != ""
 	over := newOverpass(filepath.Join(filepath.Dir(cache), "osm"))
 	osm := func(box [4]float64, classes []string, buildings bool) (*osmData, error) {
 		ways, err := over.roads(box, classes)
@@ -122,12 +133,28 @@ func run(recipePath, out, cache string, flat bool) error {
 	if err := c.check(data); err != nil {
 		return err
 	}
+	units := ""
 	if old, err := os.ReadFile(out); err == nil {
 		x, y := originOf(old)
-		data = c.text(recipePath, shiftUnits(unitsOf(old), c.origin[0]-x, c.origin[1]-y))
+		units = shiftUnits(unitsOf(old), c.origin[0]-x, c.origin[1]-y)
+		data = c.text(recipePath, units)
 	}
 	if err := os.WriteFile(out, data, 0o644); err != nil {
 		return err
+	}
+	if geography != "" {
+		if err := c.writeGeography(geography, recipePath); err != nil {
+			return err
+		}
+		// the level a board lays by the folder, beside it and named as it
+		folder := filepath.Base(geography)
+		level := filepath.Clean(geography) + ".yaml"
+		if err := os.WriteFile(level, c.levelOver(folder, recipePath, units), 0o644); err != nil {
+			return err
+		}
+		if err := c.checkIn(os.DirFS(filepath.Dir(level)), filepath.Base(level)); err != nil {
+			return err
+		}
 	}
 	for _, leg := range c.roads.skipped {
 		if c.roads.guide != nil {

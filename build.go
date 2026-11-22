@@ -29,6 +29,8 @@ type chart struct {
 	osm        *osmData
 	covered    []string // the kind the land cover draws a cell as, "" where it says none
 	built      int      // cells settled where OpenStreetMap has buildings
+	// metres a step of the heights' value where the map is written in metres too; 0, none
+	step float64
 }
 
 // source is what OpenStreetMap has within a box: south, west, north, east
@@ -71,6 +73,12 @@ func build(r recipe, height, deep elevation, osm source, land landcover, flat bo
 			}
 			w.corners[y*(cols+1)+x] = max(h, 0)
 		}
+	}
+	if r.stepped && !flat {
+		w.step = w.stepFor()
+		// a ramp's ends a step further apart is no steeper than the roads may climb
+		rise := math.Tan(w.r.Roads.Slope*math.Pi/180) - w.step/r.Area.Cell
+		w.r.Roads.Slope = math.Atan(rise) * 180 / math.Pi
 	}
 	if err := w.drain(); err != nil {
 		return nil, err

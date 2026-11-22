@@ -21,8 +21,8 @@ const attribution = `# Made by cmd/gramap. Heights: Terrain Tiles on AWS (Mapzen
 # https://github.com/tilezen/joerd/blob/master/docs/attribution.md
 `
 
-func (w *chart) text(recipePath, units string) []byte {
-	var b bytes.Buffer
+// credits are the comments a map begins with: what it was made from, and of what
+func (w *chart) credits(b *bytes.Buffer, recipePath string) {
 	b.WriteString(attribution)
 	if w.osm != nil {
 		b.WriteString("# Roads, tunnels, bridges and buildings: © OpenStreetMap contributors, " +
@@ -32,21 +32,26 @@ func (w *chart) text(recipePath, units string) []byte {
 		b.WriteString("# Land cover: CORINE Land Cover 2018, © European Union, Copernicus Land " +
 			"Monitoring\n# Service, European Environment Agency; Natura 2000 sites, © EEA\n")
 	}
-	fmt.Fprintf(&b, "# From %s", recipePath)
+	fmt.Fprintf(b, "# From %s", recipePath)
 	if w.flat {
 		b.WriteString(", flat")
 	}
 	b.WriteString(".\n")
 	a := w.r.Area
-	fmt.Fprintf(&b, "# %d x %d cells of %s m", a.Cells[0], a.Cells[1], number(a.Cell))
+	fmt.Fprintf(b, "# %d x %d cells of %s m", a.Cells[0], a.Cells[1], number(a.Cell))
 	if w.cols != a.Cells[0] || w.rows != a.Cells[1] {
-		fmt.Fprintf(&b, ", %d x %d with the sea", w.cols, w.rows)
+		fmt.Fprintf(b, ", %d x %d with the sea", w.cols, w.rows)
 	}
-	fmt.Fprintf(&b, "; a world unit %s m.\n",
+	fmt.Fprintf(b, "; a world unit %s m.\n",
 		strconv.FormatFloat(math.Round(w.perUnit*1000)/1000, 'f', -1, 64))
 	if w.origin != [2]int{} {
-		fmt.Fprintf(&b, "%s[%d, %d].\n", originLine, w.origin[0], w.origin[1])
+		fmt.Fprintf(b, "%s[%d, %d].\n", originLine, w.origin[0], w.origin[1])
 	}
+}
+
+func (w *chart) text(recipePath, units string) []byte {
+	var b bytes.Buffer
+	w.credits(&b, recipePath)
 	w.writeBoard(&b)
 	if !w.flat {
 		w.writeRelief(&b)

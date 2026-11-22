@@ -127,6 +127,10 @@ const dearer = 3
 // metres a deck keeps further off the ground than the rules ask, so the map's centimetres keep it
 const margin = 0.05
 
+// margin is what a deck keeps off the ground past the rules: more where the heights are
+// written in steps, a corner half a step off either way
+func (r *roads) margin() float64 { return max(margin, 1.5*r.w.step) }
+
 // metres: the deck's thickness and a metre to spare
 func (r *roads) clearance() float64 { return r.cfg.Thickness*r.w.figures() + 1 }
 
@@ -870,15 +874,15 @@ func (r *roads) deckFor(a, b cell.ID, way, n int) (float64, bool) {
 			case end:
 				continue
 			case across:
-				lo = max(lo, w.corners[k]+2*r.clearance()+margin)
+				lo = max(lo, w.corners[k]+2*r.clearance()+r.margin())
 			default:
-				lo = max(lo, w.corners[k]+r.clearance()+margin)
+				lo = max(lo, w.corners[k]+r.clearance()+r.margin())
 			}
 			bottom = min(bottom, w.corners[k])
 		}
 	}
 	if r.cfg.High > 0 {
-		hi = min(hi, bottom+r.cfg.High-margin)
+		hi = min(hi, bottom+r.cfg.High-r.margin())
 	}
 	if lo > hi {
 		return 0, false

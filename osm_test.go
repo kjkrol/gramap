@@ -298,5 +298,14 @@ func TestMadeira_IsTheMapItWas(t *testing.T) {
 		if got := hex.EncodeToString(sum[:]); got != want {
 			t.Errorf("flat %v: the map is %s, was %s", flat, got, want)
 		}
+		geography(t, c)
+		if !flat {
+			// in metres the map is planned a step clear of its limits: made anew, and laid
+			rc.stepped = true
+			if c, err = build(rc, tiles.at, deep.at, osm, land, flat); err != nil {
+				t.Fatal(err)
+			}
+			laid(t, c)
+		}
 	}
 }
