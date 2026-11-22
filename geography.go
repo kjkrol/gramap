@@ -77,6 +77,29 @@ func (w *chart) writeGeography(dir, recipePath string) error {
 	return os.WriteFile(filepath.Join(dir, featuresFile), w.geoJSON(w.features()), 0o644)
 }
 
+// writeLevels writes the map into the folder dir as files in metres and, beside it and named
+// as it, the level a board lays by it with the game's units, laid on a board first without
+// them: their kinds are the game's
+func (w *chart) writeLevels(dir, recipePath, units string) error {
+	if err := w.writeGeography(dir, recipePath); err != nil {
+		return err
+	}
+	folder, level := filepath.Base(dir), filepath.Clean(dir)+".yaml"
+	for _, units := range []string{"", units} {
+		data := w.levelOver(folder, recipePath, units)
+		if err := os.WriteFile(level, data, 0o644); err != nil {
+			return err
+		}
+		if units != "" {
+			break
+		}
+		if err := w.checkIn(os.DirFS(filepath.Dir(level)), filepath.Base(level)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // levelOver is the level a board lays by the map in the folder beside it: the kinds its
 // features are laid as, the fields and the units
 func (w *chart) levelOver(folder, recipePath, units string) []byte {

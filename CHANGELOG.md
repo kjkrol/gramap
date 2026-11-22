@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.2.1]
+
+### Fixed
+
+- `-geography` over a map with units: the level beside the folder is laid on a board without
+  them, their kinds being the game's, as the level file is. It was refused with "no kind is
+  defined".
+
 ## [v0.2.0]
 
 ### Added

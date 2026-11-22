@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/kjkrol/aabbworld/geom"
@@ -205,19 +206,18 @@ func TestGeography_AFlatMapHasNoHeights(t *testing.T) {
 	}
 }
 
-// laid writes the map in metres with the level over it and lays a board by them
+// laid writes the map in metres with the level over it, a game's units in it, and lays a
+// board by them
 func laid(t *testing.T, w *chart) {
 	t.Helper()
 	dir := t.TempDir()
-	if err := w.writeGeography(dir+"/geography", "isle.yaml"); err != nil {
+	const units = "units:\n  - {kind: a kind of the game's, start: [1, 1]}\n"
+	if err := w.writeLevels(dir+"/geography", "isle.yaml", units); err != nil {
 		t.Fatal(err)
 	}
-	level := w.levelOver("geography", "isle.yaml", "")
-	if err := os.WriteFile(dir+"/map.yaml", level, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := w.checkIn(os.DirFS(dir), "map.yaml"); err != nil {
-		t.Fatal(err)
+	level, err := os.ReadFile(dir + "/geography.yaml")
+	if err != nil || !strings.HasSuffix(string(level), units) {
+		t.Fatalf("the level over the map ends without the game's units (%v)", err)
 	}
 }
 

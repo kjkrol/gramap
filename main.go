@@ -143,16 +143,7 @@ func run(recipePath, out, cache, geography string, flat bool) error {
 		return err
 	}
 	if geography != "" {
-		if err := c.writeGeography(geography, recipePath); err != nil {
-			return err
-		}
-		// the level a board lays by the folder, beside it and named as it
-		folder := filepath.Base(geography)
-		level := filepath.Clean(geography) + ".yaml"
-		if err := os.WriteFile(level, c.levelOver(folder, recipePath, units), 0o644); err != nil {
-			return err
-		}
-		if err := c.checkIn(os.DirFS(filepath.Dir(level)), filepath.Base(level)); err != nil {
+		if err := c.writeLevels(geography, recipePath, units); err != nil {
 			return err
 		}
 	}
